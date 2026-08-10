@@ -1,0 +1,273 @@
+"""ExamPaper Refine - Renderer stage.
+
+Converts rewritten source files (LaTeX, HTML) into final PDF output.
+
+Engines:
+  • HTML → PDF:  WeasyPrint (pure Python, no external deps)
+  • LaTeX → PDF: subprocess call to pdflatex or tectonic (must be installed)
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import subprocess
+import tempfile
+import time
+from pathlib import Path
+from typing import Optional
+
+from pipeline.schemas import RenderResult, RewriteResult
+
+logger = logging.getLogger(__name__)
+
+
+def _render_html_to_pdf(html_content: str, output_path: Path) -> dict:
+    """Render HTML to PDF using WeasyPrint.
+
+    Returns metadata dict with page_count and engine info.
+    """
+    from weasyprint import HTML
+
+    doc = HTML(string=html_content)
+    pdf_doc = doc.render()
+    pdf_doc.write_pdf(str(output_path))
+
+    return {
+        "engine": "weasyprint",
+        "page_count": len(pdf_doc.pages),
+    }
+
+
+def _find_latex_engine() -> Optional[str]:
+    """Find an available LaTeX engine on the system."""
+    for engine in ["tectonic", "pdflatex", "xelatex", "lualatex"]:
+        try:
+            result = subprocess.run(
+                [engine, "--version"],
+                capture_output=True,
+                timeout=10,
+            )
+            if result.returncode == 0:
+                logger.info(f"Found LaTeX engine: {engine}")
+                return engine
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    return None
+
+
+def _render_latex_to_pdf(
+    latex_content: str,
+    output_path: Path,
+    engine: Optional[str] = None,
+) -> dict:
+    """Render LaTeX to PDF using an available engine.
+
+    Falls back to HTML rendering if no LaTeX engine is installed.
+    """
+    engine = engine or _find_latex_engine()
+
+    if not engine:
+        logger.warning(
+            "No LaTeX engine found (tectonic/pdflatex). "
+            "Falling back to HTML wrapper rendering."
+        )
+        return _render_latex_as_html_fallback(latex_content, output_path)
+
+    # Write LaTeX to a temp directory and compile
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tex_path = Path(tmpdir) / "document.tex"
+        tex_path.write_text(latex_content, encoding="utf-8")
+
+        # Build command based on engine
+        if engine == "tectonic":
+            cmd = [engine, str(tex_path)]
+        else:
+            # pdflatex / xelatex / lualatex
+            cmd = [
+                engine,
+                "-interaction=nonstopmode",
+                "-output-directory", tmpdir,
+                str(tex_path),
+            ]
+
+        logger.info(f"Compiling LaTeX with {engine}...")
+
+        try:
+            # Run twice for references/TOC (standard practice)
+            for pass_num in range(2):
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=120,
+                    cwd=tmpdir,
+                )
+                if result.returncode != 0 and pass_num == 1:
+                    logger.error(f"LaTeX compilation failed:\n{result.stderr[:2000]}")
+                    logger.debug(f"LaTeX stdout:\n{result.stdout[:2000]}")
+                    # Try fallback
+                    return _render_latex_as_html_fallback(latex_content, output_path)
+
+            # Find the output PDF
+            pdf_file = Path(tmpdir) / "document.pdf"
+            if not pdf_file.exists():
+                logger.error("LaTeX compiled but no PDF was produced")
+                return _render_latex_as_html_fallback(latex_content, output_path)
+
+            # Copy to final location
+            import shutil
+            shutil.copy2(str(pdf_file), str(output_path))
+
+            # Count pages (rough: check with PyMuPDF)
+            page_count = 0
+            try:
+                import fitz
+                doc = fitz.open(str(output_path))
+                page_count = len(doc)
+                doc.close()
+            except Exception:
+                pass
+
+            return {
+                "engine": engine,
+                "page_count": page_count,
+            }
+
+        except subprocess.TimeoutExpired:
+            logger.error("LaTeX compilation timed out")
+            return _render_latex_as_html_fallback(latex_content, output_path)
+
+
+def _render_latex_as_html_fallback(latex_content: str, output_path: Path) -> dict:
+    """Fallback: wrap LaTeX source in a styled HTML page and render to PDF.
+
+    This is a last resort when no LaTeX engine is available. It produces
+    a readable PDF but without proper math typesetting.
+    """
+    logger.info("Using HTML fallback for LaTeX rendering")
+
+    html = f"""\
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+    @page {{
+        size: A4;
+        margin: 2.5cm;
+    }}
+    body {{
+        font-family: "Times New Roman", "DejaVu Serif", Georgia, serif;
+        font-size: 11pt;
+        line-height: 1.6;
+        color: #1a1a1a;
+    }}
+    pre {{
+        font-family: "Courier New", monospace;
+        font-size: 9pt;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        background: #f8f8f8;
+        padding: 1em;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }}
+    .notice {{
+        background: #fff3cd;
+        border: 1px solid #ffc107;
+        padding: 0.8em;
+        margin-bottom: 1.5em;
+        border-radius: 4px;
+        font-size: 9pt;
+        color: #856404;
+    }}
+</style>
+</head>
+<body>
+<div class="notice">
+    ⚠ This document was generated without a LaTeX engine. Math formatting
+    may not render correctly. Install <code>tectonic</code> or
+    <code>pdflatex</code> for proper typesetting.
+</div>
+<pre>{_escape_html(latex_content)}</pre>
+</body>
+</html>"""
+
+    return _render_html_to_pdf(html, output_path)
+
+
+def _escape_html(text: str) -> str:
+    """Escape HTML special characters."""
+    return (
+        text.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
+def render(
+    rewrite_result: RewriteResult,
+    output_dir: Path,
+) -> RenderResult:
+    """Render the rewritten source into a final PDF.
+
+    Args:
+        rewrite_result: Output from the rewriter stage.
+        output_dir: Directory to save the final PDF.
+
+    Returns:
+        RenderResult with the PDF path and metadata.
+    """
+    start = time.time()
+    warnings: list[str] = []
+
+    if not rewrite_result.source_content:
+        return RenderResult(
+            pdf_path="",
+            render_engine="none",
+            processing_time_seconds=time.time() - start,
+            warnings=["No source content to render"],
+        )
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    pdf_path = output_dir / "final.pdf"
+
+    fmt = rewrite_result.format_chosen
+
+    try:
+        if fmt == "latex":
+            meta = _render_latex_to_pdf(rewrite_result.source_content, pdf_path)
+        elif fmt in ("html", "markdown"):
+            meta = _render_html_to_pdf(rewrite_result.source_content, pdf_path)
+        else:
+            warnings.append(f"Unknown format '{fmt}', using HTML renderer")
+            meta = _render_html_to_pdf(rewrite_result.source_content, pdf_path)
+    except Exception as e:
+        logger.error(f"Rendering failed: {e}")
+        return RenderResult(
+            pdf_path="",
+            render_engine="failed",
+            processing_time_seconds=time.time() - start,
+            warnings=[f"Render failed: {e}"],
+        )
+
+    pdf_size = pdf_path.stat().st_size if pdf_path.exists() else 0
+
+    elapsed = time.time() - start
+    logger.info(
+        f"Rendered PDF: {pdf_size / 1024:.1f}KB, "
+        f"engine={meta['engine']}, "
+        f"pages={meta.get('page_count', '?')}, "
+        f"{elapsed:.1f}s"
+    )
+
+    return RenderResult(
+        pdf_path=str(pdf_path),
+        pdf_size_bytes=pdf_size,
+        render_engine=meta["engine"],
+        processing_time_seconds=round(elapsed, 3),
+        page_count=meta.get("page_count", 0),
+        warnings=warnings,
+    )
