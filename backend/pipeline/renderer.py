@@ -23,36 +23,80 @@ logger = logging.getLogger(__name__)
 
 
 def _render_html_to_pdf(html_content: str, output_path: Path) -> dict:
-    """Render HTML to PDF using WeasyPrint.
+    """Render HTML to PDF using xhtml2pdf.
 
     Returns metadata dict with page_count and engine info.
     """
-    from weasyprint import HTML
+    from xhtml2pdf import pisa
 
-    doc = HTML(string=html_content)
-    pdf_doc = doc.render()
-    pdf_doc.write_pdf(str(output_path))
+    with open(output_path, "wb") as result_file:
+        pisa_status = pisa.CreatePDF(
+            src=html_content,
+            dest=result_file
+        )
 
+    # Note: xhtml2pdf doesn't easily return page counts, so we return 0 for now.
     return {
-        "engine": "weasyprint",
-        "page_count": len(pdf_doc.pages),
+        "engine": "xhtml2pdf",
+        "page_count": 0,
     }
 
 
 def _find_latex_engine() -> Optional[str]:
-    """Find an available LaTeX engine on the system."""
-    for engine in ["tectonic", "pdflatex", "xelatex", "lualatex"]:
+    """Find an available LaTeX engine on the system.
+    
+    Checks PATH first, then falls back to known Windows installation directories
+    for MiKTeX and TeX Live.
+    """
+    import platform
+
+    # Candidate engine names (tried in order)
+    engine_names = ["tectonic", "pdflatex", "xelatex", "lualatex"]
+
+    # Known Windows install paths to probe when not on PATH
+    windows_search_dirs = []
+    if platform.system() == "Windows":
+        import os
+        local_appdata = os.environ.get("LOCALAPPDATA", "")
+        windows_search_dirs = [
+            # MiKTeX per-user install (winget default)
+            rf"{local_appdata}\Programs\MiKTeX\miktex\bin\x64",
+            rf"{local_appdata}\Programs\MiKTeX\miktex\bin",
+            # MiKTeX system-wide install
+            r"C:\Program Files\MiKTeX\miktex\bin\x64",
+            r"C:\Program Files\MiKTeX\miktex\bin",
+            # TeX Live
+            r"C:\texlive\2024\bin\windows",
+            r"C:\texlive\2023\bin\windows",
+        ]
+
+    def _try_engine(cmd: str) -> bool:
+        """Return True if the command exists and runs successfully."""
         try:
             result = subprocess.run(
-                [engine, "--version"],
+                [cmd, "--version"],
                 capture_output=True,
                 timeout=10,
             )
-            if result.returncode == 0:
-                logger.info(f"Found LaTeX engine: {engine}")
-                return engine
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            continue
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            return False
+
+    # 1. Check PATH first
+    for name in engine_names:
+        if _try_engine(name):
+            logger.info(f"Found LaTeX engine on PATH: {name}")
+            return name
+
+    # 2. Check known install directories
+    for search_dir in windows_search_dirs:
+        from pathlib import Path as _Path
+        for name in engine_names:
+            full_path = str(_Path(search_dir) / (name + ".exe"))
+            if _try_engine(full_path):
+                logger.info(f"Found LaTeX engine at: {full_path}")
+                return full_path
+
     return None
 
 
@@ -122,7 +166,7 @@ def _render_latex_to_pdf(
             # Count pages (rough: check with PyMuPDF)
             page_count = 0
             try:
-                import fitz
+                import pymupdf as fitz
                 doc = fitz.open(str(output_path))
                 page_count = len(doc)
                 doc.close()

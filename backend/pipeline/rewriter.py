@@ -20,6 +20,7 @@ from google import genai
 from google.genai import types as genai_types
 
 from app.config import get_settings
+from pipeline.figure_generator import generate_figures_for_document
 from pipeline.schemas import AnalysisResult, ExtractionResult, RewriteResult
 
 logger = logging.getLogger(__name__)
@@ -67,18 +68,24 @@ Rewrite the following exam paper as a complete, compilable LaTeX document.
 
 Use the following structure:
 - \\documentclass{{article}} with appropriate packages (amsmath, amssymb,
-  geometry, enumitem, fancyhdr)
+  geometry, enumitem, fancyhdr, graphicx)
 - Document header with university, course, exam type, date, duration, marks
 - Instructions section (if present in the original)
 - Questions using \\begin{{enumerate}} with proper nesting for sub-questions
 - Math equations in $...$ or \\[...\\] as appropriate
 - Mark allocations right-aligned or in brackets
+- IMPORTANT: For any figures listed in GENERATED FIGURES below, embed them using
+  the exact \\includegraphics LaTeX block provided. Place each figure at the
+  point in the document where it is referenced.
 
 --- DOCUMENT METADATA ---
 {metadata}
 
 --- EXTRACTED QUESTIONS ---
 {questions}
+
+--- GENERATED FIGURES ---
+{figures}
 
 --- FULL TEXT ---
 {text}
@@ -193,9 +200,28 @@ def rewrite(
     questions_str = _format_questions(analysis_result)
     text = extraction_result.full_text[:30000]
 
+    # ── Generate matplotlib figures (LaTeX only) ───────────────────────────
+    figures_str = "None"
+    if fmt == "latex":
+        figures_dir = output_dir / "figures"
+        generated_figures = generate_figures_for_document(
+            full_text=extraction_result.full_text,
+            figures_dir=figures_dir,
+        )
+        if generated_figures:
+            figure_blocks = []
+            for fig in generated_figures:
+                figure_blocks.append(
+                    f"Description: {fig['description']}\n"
+                    f"LaTeX block:\n{fig['latex_include']}"
+                )
+            figures_str = "\n\n".join(figure_blocks)
+            logger.info(f"Injecting {len(generated_figures)} generated figures into LaTeX")
+
     if fmt == "latex":
         user_prompt = LATEX_PROMPT.format(
-            metadata=metadata_str, questions=questions_str, text=text
+            metadata=metadata_str, questions=questions_str,
+            figures=figures_str, text=text
         )
     else:
         user_prompt = HTML_PROMPT.format(
