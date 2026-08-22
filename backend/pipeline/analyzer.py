@@ -48,10 +48,23 @@ Rules:
    Do NOT guess or infer metadata that isn't explicitly present.
 6. For sub-questions, nest them under their parent question.
 7. Number questions in the order they appear (normalized_order).
+8. The website-provided metadata context below is user-supplied. Treat its
+   resolved fields as authoritative context, preserve them when they are
+   present, and use the document only to fill fields that are still missing.
+   Never replace a supplied value with a guess.
+9. Return normalized metadata, not merely a copy of the user's spelling. Use
+   the document and context to correct compact course codes and spacing. For
+   example, if the source/context clearly identifies `emete1112` as the
+   official course code `EmTe 1112`, return `EmTe 1112`. If the evidence is
+   insufficient, keep the safest value and add a warning instead of inventing.
 """
 
 ANALYSIS_USER_PROMPT_TEMPLATE = """\
 Analyze the following exam paper text and extract the structured information.
+
+--- WEBSITE METADATA CONTEXT JSON ---
+{metadata_context}
+--- END WEBSITE METADATA CONTEXT ---
 
 --- EXAM PAPER TEXT ---
 {text}
@@ -63,7 +76,10 @@ Respond with a JSON object matching this exact schema:
   "document_type": "math_heavy" | "text_only" | "mixed" | "diagram_heavy",
   "metadata": {{
     "title": "string or null",
+    "description": "string or null",
     "university": "string or null",
+    "university_type": "string or null",
+    "study_year": "string or null",
     "department": "string or null",
     "course_code": "string or null",
     "course_name": "string or null",
@@ -146,6 +162,7 @@ def _clean_json_response(text: str) -> str:
 def analyze(
     extraction_result: ExtractionResult,
     preprocess_result: Optional[PreprocessResult] = None,
+    provided_metadata: Optional[dict] = None,
 ) -> AnalysisResult:
     """Run AI analysis on extracted text to produce structured data.
 
@@ -177,7 +194,8 @@ def analyze(
     client = _build_client()
 
     user_prompt = ANALYSIS_USER_PROMPT_TEMPLATE.format(
-        text=extraction_result.full_text[:30000]  # Limit input size
+        metadata_context=json.dumps(provided_metadata or {}, ensure_ascii=False)[:10000],
+        text=extraction_result.full_text[:30000],  # Limit input size
     )
 
     try:
@@ -227,7 +245,10 @@ def analyze(
     metadata_raw = data.get("metadata", {})
     metadata = ExtractedMetadata(
         title=metadata_raw.get("title"),
+        description=metadata_raw.get("description"),
         university=metadata_raw.get("university"),
+        university_type=metadata_raw.get("university_type"),
+        study_year=metadata_raw.get("study_year"),
         department=metadata_raw.get("department"),
         course_code=metadata_raw.get("course_code"),
         course_name=metadata_raw.get("course_name"),

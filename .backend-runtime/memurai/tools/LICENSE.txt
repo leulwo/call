@@ -1,0 +1,94 @@
+JANEA SYSTEMS, INC. D/B/A MEMURAI 
+MEMURAI DEVELOPER SOFTWARE LICENSE TERMS
+
+These license terms are an agreement between you and Janea Systems, Inc. d/b/a Memurai ("Memurai") (or one of its affiliates). 
+They apply to the software named above and any Memurai services or software updates (except to the extent such services or updates are accompanied by new or additional terms, 
+in which case those different terms apply prospectively and do not alter your or Memurai's rights relating to pre-updated software or services).  
+IF YOU COMPLY WITH THESE LICENSE TERMS, YOU HAVE THE RIGHTS BELOW. BY USING THE SOFTWARE, YOU ACCEPT THESE TERMS. IF YOU DO NOT ACCEPT THEM, DO NOT USE THE SOFTWARE. 
+
+IMPORTANT NOTICE: AUTOMATIC UPDATES TO PREVIOUS VERSIONS OF MEMURAI SOFTWARE. 
+If this software is installed on servers or devices running prior versions of any supported editions of Memurai Software (or components of any of them) 
+this software will automatically update and replace certain files or features within those editions with files from this software.  
+This feature cannot be switched off. Removal of these files may cause errors in the software and the original files may not be recoverable. 
+By installing this software on a server or device that is running such editions you consent to these updates in all such editions and copies of Memurai Software (including components of any of them) running on that server or device.
+
+1. INSTALLATION AND USE RIGHTS.
+a. General. You may install and use copies of the software on any device, including third party shared devices, to design, develop, test and demonstrate your programs. You may not use the software in a production environment.
+b. Demonstration. Any person that has access to your internal network may install and use copies of the software to demonstrate use of your programs with the software. Those copies may not be used for any other purpose.
+c. User Testing. Your end users may access the software to perform acceptance tests on your programs.
+
+2. ADDITIONAL LICENSING REQUIREMENTS AND/OR USE RIGHTS. Except for Sections 9 through 15 of this Agreement, the terms and conditions of this Agreement shall not apply to any Open Source Software accompanying the Memurai Developer Software. 
+Any such Open Source Software is provided under the terms of the open source license agreement or copyright notice accompanying such Open Source Software or in any open source licenses file accompanying the Memurai Developer Software. 
+All such Open Source Software, including URLs to the respective licenses ("Open Source Software Licenses") as available on April 15, 2020, is set forth in Exhibit A to this Agreement, and accordingly, 
+by virtue of you agreeing to the terms of this Agreement, you represent and warrant that you shall further comply with the terms and conditions of such specified Open Source Software Licenses and with any additional or updated open source licenses in the file accompanying the Memurai Developer Software.
+
+3. DATA COLLECTION. The software may collect information about you and your use of the software and send that to Memurai. Memurai may use this information to provide services and improve Memurai's products and services. 
+Your opt-out rights, if any, are described in the product documentation. Some features in the software may enable collection of data from users of your applications that access or use the software. 
+If you use these features to enable data collection in your applications, you must comply with applicable law, including getting any required user consent, and maintain a prominent privacy policy that accurately informs users about how you use, collect, and share their data.
+
+4. THIRD PARTY SOFTWARE. The software may include third party applications that are licensed to you under this agreement or under their own terms. 
+Even if such applications are governed by other agreements, the disclaimer, limitations on, and exclusions of damages below also apply to the extent allowed by applicable law. 
+
+5. BENCHMARK TESTING. You must obtain Memurai's prior written approval to disclose to a third party the results of any benchmark test of the software. 
+
+6. SCOPE OF LICENSE. The software is licensed, not sold. Memurai reserves all other rights. Unless applicable law gives you more rights despite this limitation, you will not (and have no rights to):
+- work around any technical limitations in the software that only allow you to use it in certain ways;
+- reverse engineer, decompile or disassemble the software;
+- remove, minimize, block, or modify any notices of Memurai or its suppliers in the software;
+- use the software in any way that is against the law or to create or propagate malware;
+- share or distribute the software;
+- make more copies of the software than specified in this agreement or allowed by applicable law, despite this limitation;
+- publish the software, including any application programming interfaces included in the software, for others to copy;
+- share, distribute, or lend the software, provide the software as a hosted solution for others to use in production environments, or transfer the software or this agreement to any third party.
+
+7. UPDATES.  The software may periodically check for updates and download and install them for you. You may obtain updates only from Memurai or authorized sources. 
+Memurai may need to update your system to provide you with updates. You agree to receive these automatic updates without any additional notice. 
+Updates may not include or support all existing software features, services, or peripheral devices.  
+
+8. DOCUMENTATION. Any person that has valid access to your computer or internal network may copy and use the documentation for your internal, reference purposes.
+
+9. EXPORT RESTRICTIONS. The Memurai Developer Software is provided subject to the export control laws, rules, regulations, restrictions and national security controls of the United States and other applicable foreign agencies. 
+Diversion, including but not limited to the export or re-export of the Memurai Developer Software where such is contrary to U.S. or foreign law, is prohibited. 
+Without limiting the foregoing, you agree that (a) you are not, and are not acting on behalf of, any person who is a citizen, national, or resident of, or who is controlled by the government of, Cuba, Iran, North Korea, Sudan, or Syria, 
+or any other country to which the United States has prohibited export transactions, including (but not limited to) trade embargos; 
+(b) you are not, and are not acting on behalf of, any person or entity listed on the U.S. Treasury Department list of Specially Designated Nationals and Blocked Persons, or the U.S. Commerce Department Denied Persons List or Entity List; 
+and (c) you will not use the Memurai Developer Software for, and will not permit the Memurai Developer Software to be used for, any purposes prohibited by law, including (without limitation) 
+for any prohibited development, design, manufacture or production of missiles or nuclear, chemical or biological weapons.
+
+10. SUPPORT SERVICES. Memurai is not obligated under this agreement to provide any support services for the software. Any support provided is "as is", "with all faults", and without warranty of any kind.
+
+11. ENTIRE AGREEMENT. This agreement, and any other terms Memurai may provide for supplements, updates, or third-party applications, is the entire agreement for the software.
+
+12. APPLICABLE LAW AND PLACE TO RESOLVE DISPUTES. If you acquired the software in the United States or Canada, the laws of the state or province where you live (or, if a business, where your principal place of business is located) govern the interpretation of this agreement, 
+claims for its breach, and all other claims (including consumer protection, unfair competition, and tort claims), regardless of conflict of laws principles. 
+If you acquired the software in any other country, its laws apply. Regardless of whether U.S. federal jurisdiction exists, you and Memurai consent to exclusive jurisdiction and venue in the federal court in King County, Washington for all disputes heard in court.
+
+13. CONSUMER RIGHTS; REGIONAL VARIATIONS. This agreement describes certain legal rights. You may have other rights, including consumer rights, under the laws of your state or country. 
+Separate and apart from your relationship with Memurai, you may also have rights with respect to the party from which you acquired the software. This agreement does not change those other rights if the laws of your state or country do not permit it to do so.
+
+14. DISCLAIMER OF WARRANTY. THE SOFTWARE IS LICENSED "AS IS." YOU BEAR THE RISK OF USING IT. MEMURAI GIVES NO EXPRESS WARRANTIES, GUARANTEES, OR CONDITIONS. 
+TO THE EXTENT PERMITTED UNDER APPLICABLE LAWS, MEMURAI EXCLUDES ALL IMPLIED WARRANTIES, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+15.LIMITATION ON AND EXCLUSION OF DAMAGES. IF YOU HAVE ANY BASIS FOR RECOVERING DAMAGES DESPITE THE PRECEDING DISCLAIMER OF WARRANTY, YOU CAN RECOVER FROM MEMURAI AND ITS SUPPLIERS ONLY DIRECT DAMAGES UP TO U.S. 
+TEN DOLLARS ($10.00). YOU CANNOT RECOVER ANY OTHER DAMAGES, INCLUDING CONSEQUENTIAL, LOST PROFITS, SPECIAL, INDIRECT, OR INCIDENTAL DAMAGES.
+This limitation applies to (a) anything related to the software, services, content (including code) on third party Internet sites, or third party applications; 
+and (b) claims for breach of contract, warranty, guarantee, or condition; strict liability, negligence, or other tort; or any other claim; in each case to the extent permitted by applicable law.
+It also applies even if Memurai knew or should have known about the possibility of the damages. 
+The above limitation or exclusion may not apply to you because your state, province, or country may not allow the exclusion or limitation of incidental, consequential, or other damages.
+
+
+EXHIBIT A
+Open Source Software and Open Source Software Licenses 
+
+The Memurai Developer Software provided under this Agreement is derived from both Redis and from a fork by Microsoft Open Technologies.
+
+Subject to Section 2 of this Agreement, which shall control and prevail with respect to all of the following licenses, you agree to abide by the terms and conditions of said licenses:
+
+1. The Redis license, as set forth at: https://github.com/antirez/redis/blob/unstable/COPYING
+2. The Microsoft Open Technologies license, as set forth at: https://github.com/MicrosoftArchive/redis/blob/3.0/license.txt
+3. The following additional four licenses, as set forth at:
+a) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/hiredis/COPYING
+b) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/jemalloc-win/LICENSE
+c) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/jemalloc-win/COPYING
+d) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/lua/COPYRIGHT
+d) https://github.com/MicrosoftArchive/redis/blob/3.0/deps/lua/COPYRIGHT

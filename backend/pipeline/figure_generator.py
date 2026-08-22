@@ -12,6 +12,7 @@ The generated image can then be embedded into a LaTeX document via \\includegrap
 from __future__ import annotations
 
 import logging
+import os
 import re
 import subprocess
 import sys
@@ -161,6 +162,8 @@ def _run_matplotlib_script(
     Returns True on success.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    mpl_config_dir = output_path.parent / "mplconfig"
+    mpl_config_dir.mkdir(parents=True, exist_ok=True)
 
     # Inject the output path at the top
     full_code = f'OUTPUT_PATH = r"{str(output_path)}"\n\n' + textwrap.dedent(code)
@@ -171,6 +174,7 @@ def _run_matplotlib_script(
             capture_output=True,
             text=True,
             timeout=timeout,
+            env={**os.environ, "MPLCONFIGDIR": str(mpl_config_dir)},
         )
 
         if result.returncode != 0:

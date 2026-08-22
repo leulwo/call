@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fbfaf7;
+  --foreground: #1f2d32;
+  --muted: #76817f;
+  --line: #e5e8e4;
+  --green: #3e8d3c;
+  --green-dark: #2f6d35;
+}
+
+* { box-sizing: border-box; }
+
+html { background: var(--background); }
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Atkinson Hyperlegible", "Trebuchet MS", Verdana, Arial, sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+label,
+summary {
+  font-weight: 650;
+}
+
+p,
+li,
+dt,
+dd {
+  letter-spacing: 0.012em;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 750 !important;
+  letter-spacing: -0.015em;
+}
+
+button, input, textarea, select { font: inherit; }
+
+button, a { -webkit-tap-highlight-color: transparent; }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.thin-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+.thin-scrollbar::-webkit-scrollbar-thumb { background: #d2d9d4; border-radius: 999px; }
+.thin-scrollbar::-webkit-scrollbar-track { background: transparent; }
+
+.paper-preview-lines {
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 7px, rgba(94, 104, 101, 0.16) 7px, rgba(94, 104, 101, 0.16) 8px);
+}
+
+.paper-card-shadow { box-shadow: 0 2px 8px rgba(35, 48, 42, 0.06); }
+.paper-card-shadow:hover { box-shadow: 0 10px 24px rgba(35, 48, 42, 0.11); }
+
+@keyframes paperflow-stage-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -7px, 0) scale(1.025); }
+}
+
+@keyframes paperflow-stage-glow {
+  0%, 100% { opacity: 0.28; transform: scale(0.88); }
+  50% { opacity: 0.65; transform: scale(1.08); }
+}
+
+.paperflow-stage-art {
+  animation: paperflow-stage-float 2.8s ease-in-out infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
+.paperflow-stage-art-shell {
+  position: relative;
+  isolation: isolate;
+}
+
+.paperflow-stage-art-shell::after {
+  position: absolute;
+  inset: 18%;
+  z-index: -1;
+  border-radius: 999px;
+  background: rgba(108, 164, 99, 0.18);
+  content: "";
+  filter: blur(16px);
+  animation: paperflow-stage-glow 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .paperflow-stage-art,
+  .paperflow-stage-art-shell::after { animation: none; }
+}
+
+::selection { background: #dcebcf; color: #26472c; }

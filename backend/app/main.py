@@ -8,7 +8,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.database import init_db
-from app.routers import papers, process, upload
+from app.middleware.rate_limit import limiter, rate_limit_exceeded_handler
+from app.routers import metadata, papers, process, upload
+from slowapi.errors import RateLimitExceeded
 
 # Configure logging
 logging.basicConfig(
@@ -23,13 +25,13 @@ async def lifespan(app: FastAPI):
     """Lifecycle events for the FastAPI application."""
     settings = get_settings()
     logger.info("Initializing ExamPaper Refine...")
-    
+
     # Ensure directories exist
     settings.ensure_directories()
-    
+
     # Initialize database tables
     await init_db()
-    
+
     logger.info("Startup complete.")
     yield
     logger.info("Shutting down...")
@@ -43,6 +45,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Register rate limiter
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -54,8 +60,21 @@ app.add_middleware(
 
 # Include routers
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
+app.include_router(metadata.router, prefix="/api", tags=["Metadata"])
 app.include_router(papers.router, prefix="/api", tags=["Papers"])
 app.include_router(process.router, prefix="/api", tags=["Process"])
+
+
+@app.get("/")
+async def root():
+    """Root entry point with documentation links."""
+    return {
+        "name": "ExamPaper Refine API",
+        "version": app.version,
+        "docs_url": "/docs",
+        "health_url": "/health",
+        "status": "online",
+    }
 
 
 @app.get("/health")

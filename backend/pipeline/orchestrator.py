@@ -7,6 +7,8 @@ Upload -> Preprocess -> Extract -> Analyze -> Rewrite -> Render -> Store.
 from __future__ import annotations
 
 import logging
+import json
+import shutil
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -25,12 +27,13 @@ from app.models import (
     Question,
     StageStatus,
 )
+from services.metadata_resolver import cache_ai_resolutions, resolve_metadata_context
 from pipeline.analyzer import analyze
 from pipeline.extractor import extract_text
 from pipeline.preprocessor import preprocess
 from pipeline.renderer import render
 from pipeline.rewriter import rewrite
-from pipeline.schemas import PipelineResult
+from pipeline.schemas import PipelineResult, RenderResult
 from storage.local import storage
 
 logger = logging.getLogger(__name__)
@@ -38,6 +41,44 @@ logger = logging.getLogger(__name__)
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _make_original_pdf(source_path: Path, work_dir: Path, prepared_pages: Optional[list] = None) -> Path:
+    """Create a readable cleaned-PDF fallback when AI typesetting is unavailable.
+
+    The preprocessor has already rendered PDFs and cleaned image uploads. Use
+    those page images here instead of simply copying the user's original file;
+    this keeps the product useful when the external AI service is unavailable.
+    """
+    fallback_path = work_dir / "cleaned-fallback.pdf"
+    page_paths = [Path(page.image_path) for page in (prepared_pages or []) if Path(page.image_path).is_file()]
+
+    from PIL import Image
+
+    if page_paths:
+        frames = []
+        for page_path in page_paths:
+            with Image.open(page_path) as page_image:
+                frames.append(page_image.convert("RGB"))
+        frames[0].save(fallback_path, "PDF", resolution=150.0, save_all=True, append_images=frames[1:])
+        return fallback_path
+
+    if source_path.suffix.lower() == ".pdf":
+        shutil.copy2(source_path, fallback_path)
+        return fallback_path
+
+    with Image.open(source_path) as image:
+        frames = []
+        try:
+            for index in range(getattr(image, "n_frames", 1)):
+                image.seek(index)
+                frames.append(image.convert("RGB"))
+        except EOFError:
+            pass
+        if not frames:
+            frames = [image.convert("RGB")]
+        frames[0].save(fallback_path, "PDF", resolution=150.0, save_all=True, append_images=frames[1:])
+    return fallback_path
 
 
 async def _log_stage(
@@ -60,27 +101,34 @@ async def _log_stage(
         metrics=metrics or {},
     )
     db.add(log)
-    
-    # Also update the main paper status
+
+    stage_order = {
+        ProcessingStage.PREPROCESS: (1, PaperStatus.PREPROCESSING),
+        ProcessingStage.EXTRACT: (2, PaperStatus.EXTRACTING),
+        ProcessingStage.ANALYZE: (3, PaperStatus.ANALYZING),
+        ProcessingStage.REWRITE: (4, PaperStatus.REWRITING),
+        ProcessingStage.RENDER: (5, PaperStatus.RENDERING),
+    }
+
+    # Also update the main paper status and progress tracking
     paper = await db.get(ExamPaper, paper_id)
     if paper:
+        paper.current_stage = stage.value
         if status == StageStatus.FAILED:
             paper.status = PaperStatus.FAILED
-        elif stage == ProcessingStage.PREPROCESS and status == StageStatus.RUNNING:
-            paper.status = PaperStatus.PREPROCESSING
-        elif stage == ProcessingStage.EXTRACT and status == StageStatus.RUNNING:
-            paper.status = PaperStatus.EXTRACTING
-        elif stage == ProcessingStage.ANALYZE and status == StageStatus.RUNNING:
-            paper.status = PaperStatus.ANALYZING
-        elif stage == ProcessingStage.REWRITE and status == StageStatus.RUNNING:
-            paper.status = PaperStatus.REWRITING
-        elif stage == ProcessingStage.RENDER and status == StageStatus.RUNNING:
-            paper.status = PaperStatus.RENDERING
+            paper.failed_stage = stage.value
+        elif status == StageStatus.RUNNING:
+            step, paper_status = stage_order.get(stage, (0, PaperStatus.VALIDATING))
+            paper.status = paper_status
+            paper.stage_progress = step
         elif stage == ProcessingStage.RENDER and status == StageStatus.COMPLETED:
-            paper.status = PaperStatus.NEEDS_REVIEW
+            paper.status = PaperStatus.COMPLETED
+            paper.stage_progress = 6
+            paper.current_stage = "completed"
 
     await db.commit()
     return log
+
 
 
 async def process_paper(db: AsyncSession, paper_id: str) -> PipelineResult:
@@ -140,6 +188,9 @@ async def process_paper(db: AsyncSession, paper_id: str) -> PipelineResult:
             
             paper.extraction_confidence = ext_res.overall_confidence
             paper.has_embedded_text = int("embedded" in ext_res.methods_used)
+            # Keep the extracted text attached to the paper so catalog search can
+            # find a phrase inside a PDF, not only its manually entered metadata.
+            paper.extracted_text = ext_res.full_text
             
             await _log_stage(
                 db, paper_id, ProcessingStage.EXTRACT, StageStatus.COMPLETED, stage_start,
@@ -156,22 +207,86 @@ async def process_paper(db: AsyncSession, paper_id: str) -> PipelineResult:
         stage_start = _utcnow()
         await _log_stage(db, paper_id, ProcessingStage.ANALYZE, StageStatus.RUNNING, stage_start)
         try:
-            ana_res = analyze(ext_res, prep_res)
+            try:
+                metadata_envelope = json.loads(paper.metadata_json or "{}")
+            except json.JSONDecodeError:
+                metadata_envelope = {"provided": {}}
+
+            # Resolve cached aliases immediately and use the external lookup
+            # only here, inside the queued worker. The raw user context stays
+            # attached to the resolved JSON sent to the AI analyzer.
+            metadata_context = await resolve_metadata_context(
+                db,
+                metadata_envelope,
+                allow_web_lookup=True,
+            )
+            paper.metadata_json = json.dumps(metadata_context, ensure_ascii=False)
+            resolved = metadata_context.get("resolved", {})
+            paper.university = resolved.get("university") or paper.university
+            paper.university_type = resolved.get("university_type") or paper.university_type
+            paper.study_year = resolved.get("study_year") or paper.study_year
+            paper.department = resolved.get("department") or paper.department
+            paper.course_code = resolved.get("course_code") or paper.course_code
+            paper.course_name = resolved.get("course_name") or paper.course_name
+
+            ana_res = analyze(ext_res, prep_res, provided_metadata=metadata_context)
             result.analysis = ana_res
             
             # Update paper metadata
             m = ana_res.metadata
             paper.document_type = ana_res.document_type
-            paper.university = m.university or paper.university
-            paper.department = m.department
-            paper.course_code = m.course_code or paper.course_code
-            paper.course_name = m.course_name
-            paper.year = m.year or paper.year
-            paper.semester = m.semester
-            paper.exam_type = m.exam_type
+            paper.title = paper.title or m.title or paper.original_filename
+            paper.description = paper.description or m.description
+            paper.university = m.university or resolved.get("university") or paper.university
+            paper.university_type = m.university_type or resolved.get("university_type") or paper.university_type
+            paper.study_year = m.study_year or resolved.get("study_year") or paper.study_year
+            paper.department = m.department or resolved.get("department") or paper.department
+            paper.course_code = m.course_code or resolved.get("course_code") or paper.course_code
+            paper.course_name = m.course_name or resolved.get("course_name") or paper.course_name
+            paper.year = paper.year or m.year
+            paper.semester = paper.semester or m.semester
+            paper.exam_type = paper.exam_type or m.exam_type
             paper.language = m.language
             paper.instructor = m.instructor
             paper.quality_score = ana_res.confidence
+
+            normalized_metadata = {
+                key: value
+                for key, value in {
+                    "title": paper.title,
+                    "description": paper.description,
+                    "university": paper.university,
+                    "university_type": paper.university_type,
+                    "study_year": paper.study_year,
+                    "department": paper.department,
+                    "course_code": paper.course_code,
+                    "course_name": paper.course_name,
+                    "year": paper.year,
+                    "semester": paper.semester,
+                    "exam_type": paper.exam_type,
+                    "uploaded_at": metadata_context.get("uploaded_at") or (paper.created_at.isoformat() if paper.created_at else None),
+                }.items()
+                if value not in (None, "")
+            }
+            metadata_context["ai_normalized"] = {
+                key: value
+                for key, value in {
+                    "university": m.university,
+                    "university_type": m.university_type,
+                    "study_year": m.study_year,
+                    "department": m.department,
+                    "course_code": m.course_code,
+                    "course_name": m.course_name,
+                }.items()
+                if value not in (None, "")
+            }
+            metadata_context["normalized"] = normalized_metadata
+            paper.metadata_json = json.dumps(metadata_context, ensure_ascii=False)
+            await cache_ai_resolutions(
+                db,
+                metadata_context.get("provided", {}),
+                metadata_context["ai_normalized"],
+            )
             
             # Save parsed questions to DB
             def _save_questions(qs, parent_id=None):
@@ -208,9 +323,13 @@ async def process_paper(db: AsyncSession, paper_id: str) -> PipelineResult:
         # ── 5. Rewrite (AI Typesetting) ─────────────────────────────────────────
         stage_start = _utcnow()
         await _log_stage(db, paper_id, ProcessingStage.REWRITE, StageStatus.RUNNING, stage_start)
+        rewrite_used_fallback = False
         try:
             rew_res = rewrite(ext_res, ana_res, work_dir)
             result.rewrite = rew_res
+
+            if not rew_res.source_file_path or not Path(rew_res.source_file_path).is_file():
+                raise FileNotFoundError("AI rewrite did not produce a source file")
             
             # Store the source code derivative
             source_type = DerivativeType.REWRITTEN_LATEX if rew_res.format_chosen == "latex" else DerivativeType.REWRITTEN_HTML
@@ -238,24 +357,52 @@ async def process_paper(db: AsyncSession, paper_id: str) -> PipelineResult:
             )
         except Exception as e:
             logger.exception("Rewrite failed")
-            await _log_stage(db, paper_id, ProcessingStage.REWRITE, StageStatus.FAILED, stage_start, str(e))
-            result.status = "failed"
-            result.error = str(e)
-            return result
+            # A missing AI service or typesetting engine must not destroy a
+            # valid upload. Keep a cleaned, readable PDF available and mark it
+            # for review so the library can still receive it.
+            await _log_stage(
+                db,
+                paper_id,
+                ProcessingStage.REWRITE,
+                StageStatus.COMPLETED,
+                stage_start,
+                metrics={
+                    "fallback": "cleaned_preprocess_fallback",
+                    "warning": "AI refinement was unavailable; showing a cleaned preview. This document will be retried when the refinement worker is available.",
+                    "technical_error": str(e),
+                },
+            )
+            rewrite_used_fallback = True
+            result.error = f"AI refinement unavailable; cleaned preprocessed PDF created: {e}"
 
         # ── 6. Render (Source -> PDF) ───────────────────────────────────────────
         stage_start = _utcnow()
         await _log_stage(db, paper_id, ProcessingStage.RENDER, StageStatus.RUNNING, stage_start)
         try:
-            ren_res = render(rew_res, work_dir)
-            result.render = ren_res
-            
-            if not ren_res.pdf_path:
-                raise ValueError("Renderer did not produce a PDF")
-                
+            if rewrite_used_fallback:
+                fallback_path = _make_original_pdf(file_path, work_dir, prep_res.pages)
+                result.render = RenderResult(
+                    pdf_path=str(fallback_path),
+                    pdf_size_bytes=fallback_path.stat().st_size,
+                    render_engine="cleaned_preprocess_fallback",
+                    processing_time_seconds=0,
+                    page_count=paper.page_count or 0,
+                    warnings=["AI refinement was unavailable; a cleaned preprocessed PDF was created."],
+                )
+                rendered_pdf_path = fallback_path
+                render_metrics = {"engine": "cleaned_preprocess_fallback", "size": fallback_path.stat().st_size}
+            else:
+                ren_res = render(rew_res, work_dir)
+                result.render = ren_res
+
+                if not ren_res.pdf_path:
+                    raise ValueError("Renderer did not produce a PDF")
+                rendered_pdf_path = Path(ren_res.pdf_path)
+                render_metrics = {"engine": ren_res.render_engine, "size": ren_res.pdf_size_bytes}
+
             # Store final PDF
             pdf_key = storage.store_derivative(
-                ren_res.pdf_path,
+                rendered_pdf_path,
                 paper_id,
                 version=1,
                 derivative_type=DerivativeType.FINAL_PDF.value,
@@ -271,7 +418,7 @@ async def process_paper(db: AsyncSession, paper_id: str) -> PipelineResult:
             
             await _log_stage(
                 db, paper_id, ProcessingStage.RENDER, StageStatus.COMPLETED, stage_start,
-                metrics={"engine": ren_res.render_engine, "size": ren_res.pdf_size_bytes}
+                metrics=render_metrics
             )
         except Exception as e:
             logger.exception("Rendering failed")
@@ -281,9 +428,36 @@ async def process_paper(db: AsyncSession, paper_id: str) -> PipelineResult:
             return result
 
     # ── Finalize ────────────────────────────────────────────────────────────────
-    result.status = "completed"
+    if rewrite_used_fallback:
+        result.status = "needs_review"
+        paper.status = PaperStatus.NEEDS_REVIEW
+        paper.failed_stage = ProcessingStage.REWRITE.value
+        await db.commit()
+    else:
+        result.status = "completed"
+        paper.failed_stage = None
+        await db.commit()
     result.total_processing_time_seconds = round(time.time() - overall_start, 3)
     result.completed_at = _utcnow()
-    
+
+    # Trigger optional email notification if configured
+    if paper.email:
+        try:
+            from services.email_notifier import send_paper_ready_email
+            await send_paper_ready_email(
+                to_email=paper.email,
+                paper_id=paper_id,
+                title=paper.title or paper.original_filename,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to trigger email notification: {e}")
+
     logger.info(f"Successfully processed paper {paper_id} in {result.total_processing_time_seconds}s")
     return result
+
+
+async def run_pipeline_for_paper(paper_id: str) -> PipelineResult:
+    """Entry point for Celery tasks or background workers to run the pipeline."""
+    from app.database import async_session
+    async with async_session() as session:
+        return await process_paper(session, paper_id)

@@ -90,7 +90,10 @@ class ExtractedMetadata(BaseModel):
     """Metadata extracted from the document."""
 
     title: Optional[str] = None
+    description: Optional[str] = None
     university: Optional[str] = None
+    university_type: Optional[str] = None
+    study_year: Optional[str] = None
     department: Optional[str] = None
     course_code: Optional[str] = None
     course_name: Optional[str] = None
