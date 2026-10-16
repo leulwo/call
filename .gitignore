@@ -1,0 +1,126 @@
+# ============================================================
+#  PaperFlow — root .gitignore
+# ============================================================
+
+# ── Secrets & environment ────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# ── Python artefacts ─────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+.eggs/
+
+# Python virtualenvs (root AND backend/.venv)
+.venv/
+venv/
+env/
+ENV/
+
+# Build / dist
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+
+# Test & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# ── Database & storage ────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+data/
+
+# Uploaded files / processed paper storage (never commit real uploads)
+backend/storage/
+backend/knowledge/
+
+# LaTeX scratch artefacts produced during rendering
+backend/*.aux
+backend/*.log
+backend/*.pdf
+backend/*.fls
+backend/*.fdb_latexmk
+backend/*.synctex.gz
+*.aux
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+
+# ── Runtime / logs ────────────────────────────────────────────
+*.log
+logs/
+tmp/
+temp/
+.tmp/
+
+# ── Redis & backend-runtime binaries ─────────────────────────
+# The entire runtime folder: Redis binary zip (17 MB), pid files, dump.rdb
+.backend-runtime/
+
+# ── Node / frontend ──────────────────────────────────────────
+node_modules/
+.next/
+/out/
+/build
+.vercel
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+/coverage
+
+# ── OS junk ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE / editor ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# ── Project scratch files that should stay local ─────────────
+# Internal implementation plans / AI session artefacts
+implementation_plan*.md
+instuction.md
+opencode.json
+.opencode/
+benchmarks/
+test_figure_pipeline.py
+
+# One-off fix/check scripts committed during dev
+backend/check_failed.py
+backend/fix_index_requeue.py
+backend/reset_stuck_pg.py
+
+# Alembic-generated stub left in root
+backend/conftest.py

@@ -1,0 +1,33 @@
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node -r ./patch-node24.js node_modules/next/dist/bin/next dev",
+    "build": "node -r ./patch-node24.js node_modules/next/dist/bin/next build",
+    "start": "node -r ./patch-node24.js node_modules/next/dist/bin/next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.42.0",
+    "lottie-react": "^2.4.1",
+    "lucide-react": "^1.16.0",
+    "next": "^15.5.24",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "^15.5.24",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
